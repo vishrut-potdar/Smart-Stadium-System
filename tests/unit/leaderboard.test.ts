@@ -1,6 +1,30 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import { scorePrediction, useMe, useLeaderboard, type Fan, type Prediction } from "@/lib/leaderboard";
+
+let useCustomuseState = false;
+const mockStateSetter = vi.fn();
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useState: (initialState: unknown) => {
+      if (useCustomuseState) {
+        const val = typeof initialState === "function" ? initialState() : initialState;
+        return [val, (next: unknown) => mockStateSetter(next)];
+      }
+      return actual.useState(initialState);
+    },
+  };
+});
+
+import {
+  scorePrediction,
+  useMe,
+  useLeaderboard,
+  type Fan,
+  type Prediction,
+} from "@/lib/leaderboard";
 
 const KEY_UID = "arena.uid";
 const KEY_ME = "arena.me";
@@ -200,7 +224,15 @@ describe("leaderboard hooks and storage state engine", () => {
 
       act(() => {
         const nextBoard: Fan[] = [
-          { uid: "f-99", name: "Top Dog", predictions: [], points: 100, correct: 10, streak: 5, best: 5 },
+          {
+            uid: "f-99",
+            name: "Top Dog",
+            predictions: [],
+            points: 100,
+            correct: 10,
+            streak: 5,
+            best: 5,
+          },
         ];
         localStorage.setItem(KEY_BOARD, JSON.stringify(nextBoard));
         window.dispatchEvent(new CustomEvent(CHANNEL));
@@ -245,6 +277,78 @@ describe("leaderboard hooks and storage state engine", () => {
       expect(result.current.me.name).toBe("No-op Name");
 
       setItemSpy.mockRestore();
+    });
+  });
+
+  describe("SSR and missing window environment support", () => {
+    it("should handle undefined window in leaderboard.ts methods", () => {
+      const originalWindow = globalThis.window;
+
+      // Render hooks with custom useState mock so state updates are no-ops and don't trigger React scheduler/renderer
+      useCustomuseState = true;
+      const { result: meResult } = renderHook(() => useMe());
+
+      // Spy on addEventListener to capture useLeaderboard's refresh listener
+      const addEventListenerSpy = vi.spyOn(originalWindow, "addEventListener");
+      const { result: boardResult } = renderHook(() => useLeaderboard());
+      const refreshListener = addEventListenerSpy.mock.calls.find(
+        (call) => call[0] === "arena-leaderboard",
+      )?.[1] as (() => void) | undefined;
+
+      expect(refreshListener).toBeDefined();
+
+      // Now we perform our synchronous operations under undefined window
+      // 1. Check writeMe/writeBoard early exits under undefined window
+      act(() => {
+        // Temporarily set window to undefined
+        (globalThis as unknown as { window: unknown }).window = undefined;
+
+        meResult.current.setName("SSR User");
+
+        // Restore window
+        (globalThis as unknown as { window: unknown }).window = originalWindow;
+      });
+
+      // 2. Check readBoard/ensureMe early exits under undefined window
+      if (refreshListener) {
+        act(() => {
+          (globalThis as unknown as { window: unknown }).window = undefined;
+
+          expect(() => refreshListener()).not.toThrow();
+
+          (globalThis as unknown as { window: unknown }).window = originalWindow;
+        });
+      }
+
+      // 3. Check writeBoard when writeMe does NOT exit but writeBoard DOES exit early
+      // Let's use a getter on window to intercept and return undefined specifically during nested calls
+      let accessCount = 0;
+      Object.defineProperty(globalThis, "window", {
+        get() {
+          accessCount++;
+          // First access inside writeMe returns originalWindow
+          if (accessCount === 1) {
+            return originalWindow;
+          }
+          // Subsequent access returns undefined
+          return undefined;
+        },
+        configurable: true,
+      });
+
+      act(() => {
+        meResult.current.setName("Count SSR User");
+      });
+
+      // Restore window back to normal
+      Object.defineProperty(globalThis, "window", {
+        value: originalWindow,
+        writable: true,
+        configurable: true,
+      });
+
+      addEventListenerSpy.mockRestore();
+      useCustomuseState = false;
     });
   });
 });

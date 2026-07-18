@@ -186,8 +186,6 @@ export function localTranslate(text: string, targetCode: LangCode): string {
   });
 
   const translatedText = words.join("");
-  // If target language is english, return original
-  if (targetCode === "en") return translatedText;
 
   // Otherwise, provide a beautiful simulated translation
   return `[${LANGUAGES[targetCode]}] ${translatedText}`;
@@ -254,6 +252,7 @@ export const translateText = createServerFn({ method: "POST" })
 
       return { text: text.trim(), target };
     } catch (err) {
+      console.warn("Translation API error, falling back to localTranslate:", formatAiError(err));
       // Return local translation on any API error too, instead of breaking!
       return { text: localTranslate(safe, data.target), target };
     }

@@ -1,4 +1,3 @@
-/* eslint-disable no-empty */
 // Tiny localStorage-backed cache so NFC directions & maps keep working
 // with limited connectivity. Values are versioned so a schema change
 // invalidates the cache automatically.
@@ -14,7 +13,8 @@ export function readCache<T>(key: string): { data: T; at: number } | null {
     const entry = JSON.parse(raw) as Entry<T>;
     if (entry.v !== VERSION) return null;
     return { data: entry.data, at: entry.at };
-  } catch {
+  } catch (error) {
+    console.warn(`Failed to read cache for key "${key}":`, error);
     return null;
   }
 }
@@ -24,7 +24,9 @@ export function writeCache<T>(key: string, data: T) {
   try {
     const entry: Entry<T> = { v: VERSION, at: Date.now(), data };
     localStorage.setItem(`arena.cache.${key}`, JSON.stringify(entry));
-  } catch {}
+  } catch (error) {
+    console.error(`Failed to write cache for key "${key}":`, error);
+  }
 }
 
 export function useOnline(): boolean {

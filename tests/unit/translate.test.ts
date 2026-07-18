@@ -4,21 +4,28 @@ import { localTranslate, LANGUAGES } from "@/lib/translate.functions";
 // 1. Mock TanStack Start server functions & request headers
 vi.mock("@tanstack/react-start", () => {
   return {
-    createServerFn: (options: any) => {
-      const serverFn = async (args: any) => {
-        if (options.inputValidator) {
-          options.inputValidator(args.data);
-        }
-        return options.handler(args);
-      };
-      serverFn.inputValidator = function (validator: any) {
-        options.inputValidator = validator;
-        return this;
-      };
-      serverFn.handler = function (handler: any) {
-        options.handler = handler;
-        return this;
-      };
+    createServerFn: (options: {
+      inputValidator?: (data: unknown) => void;
+      handler: (args: { data: unknown }) => unknown;
+    }) => {
+      const serverFn = Object.assign(
+        async (args: { data: unknown }) => {
+          if (options.inputValidator) {
+            options.inputValidator(args.data);
+          }
+          return options.handler(args);
+        },
+        {
+          inputValidator: function (validator: (data: unknown) => void) {
+            options.inputValidator = validator;
+            return this;
+          },
+          handler: function (handler: (args: { data: unknown }) => unknown) {
+            options.handler = handler;
+            return this;
+          },
+        },
+      );
       return serverFn;
     },
   };
@@ -42,8 +49,8 @@ const mockGenerateContent = vi.fn().mockResolvedValue({
 vi.mock("@google/genai", () => {
   return {
     GoogleGenAI: class {
-      config: any;
-      constructor(config: any) {
+      config: unknown;
+      constructor(config: unknown) {
         this.config = config;
       }
       models = {
@@ -107,8 +114,12 @@ describe("local offline translation logic", () => {
 });
 
 describe("translateText server function", () => {
-  let translateText: any;
-  let aiGateway: any;
+  let translateText: (args: {
+    data: { text: string; target: "es" | "fr" | "de" | "hi" | "en" };
+  }) => Promise<{ text: string; target: string }>;
+  let aiGateway: {
+    rateLimit: (key: string, max: number, windowMs: number) => { ok: boolean; retryAfter?: number };
+  };
 
   beforeEach(async () => {
     vi.resetModules();
@@ -156,6 +167,28 @@ describe("translateText server function", () => {
     expect(mockGenerateText).toHaveBeenCalled();
   });
 
+  it("should handle empty or undefined response from Gemini API gracefully", async () => {
+    process.env.GEMINI_API_KEY = "test-gemini-key";
+    mockGenerateContent.mockResolvedValueOnce({
+      text: undefined,
+    });
+
+    const result = await translateText({ data: { text: "hello", target: "es" } });
+    expect(result.text).toBe("");
+    expect(result.target).toBe("Spanish");
+  });
+
+  it("should handle empty or undefined response from Lovable AI Gateway gracefully", async () => {
+    process.env.LOVABLE_API_KEY = "test-lovable-key";
+    mockGenerateText.mockResolvedValueOnce({
+      text: undefined,
+    });
+
+    const result = await translateText({ data: { text: "hello", target: "es" } });
+    expect(result.text).toBe("");
+    expect(result.target).toBe("Spanish");
+  });
+
   it("should fall back to localTranslate if the external API call fails", async () => {
     process.env.GEMINI_API_KEY = "test-gemini-key";
     mockGenerateContent.mockRejectedValueOnce(new Error("API Overloaded"));
@@ -172,28 +205,24 @@ describe("translateText server function", () => {
       retryAfter: 45,
     });
 
-    await expect(
-      translateText({ data: { text: "hello", target: "es" } })
-    ).rejects.toThrow("Rate limit exceeded. Try again in 45s.");
+    await expect(translateText({ data: { text: "hello", target: "es" } })).rejects.toThrow(
+      "Rate limit exceeded. Try again in 45s.",
+    );
 
     rateLimitSpy.mockRestore();
   });
 
   it("should throw a validation error for invalid inputs", async () => {
     // Empty text
-    await expect(
-      translateText({ data: { text: "  ", target: "es" } })
-    ).rejects.toThrow();
+    await expect(translateText({ data: { text: "  ", target: "es" } })).rejects.toThrow();
 
     // Too long text (> 800 chars)
     const longText = "a".repeat(801);
-    await expect(
-      translateText({ data: { text: longText, target: "es" } })
-    ).rejects.toThrow();
+    await expect(translateText({ data: { text: longText, target: "es" } })).rejects.toThrow();
 
     // Unsupported language code
     await expect(
-      translateText({ data: { text: "hello", target: "invalid_lang" as any } })
+      translateText({ data: { text: "hello", target: "invalid_lang" as unknown as "es" } }),
     ).rejects.toThrow();
   });
 });

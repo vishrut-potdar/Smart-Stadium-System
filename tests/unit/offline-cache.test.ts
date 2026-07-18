@@ -78,4 +78,31 @@ describe("offline-cache utility", () => {
       expect(useOnline()).toBe(false);
     });
   });
+
+  describe("SSR / undefined window support", () => {
+    it("should return null/do nothing/return true when window is undefined", () => {
+      const originalWindow = globalThis.window;
+
+      Object.defineProperty(globalThis, "window", {
+        get() {
+          return undefined;
+        },
+        configurable: true,
+      });
+
+      expect(readCache("some-key")).toBeNull();
+
+      // Should not throw and do nothing
+      expect(() => writeCache("some-key", "some-data")).not.toThrow();
+
+      expect(useOnline()).toBe(true);
+
+      // Restore window
+      Object.defineProperty(globalThis, "window", {
+        value: originalWindow,
+        writable: true,
+        configurable: true,
+      });
+    });
+  });
 });

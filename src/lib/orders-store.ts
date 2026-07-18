@@ -15,6 +15,13 @@ export type Order = {
 const KEY = "arena.orders.v1";
 const STAGES: OrderStage[] = ["Received", "Preparing", "Ready", "Picked up"];
 
+const BASE_PREPARATION_TIME = 30;
+const PER_ITEM_PREPARATION_TIME = 12;
+const DEFAULT_STALL = "Concourse Grill";
+const PREPARING_STAGE_RATIO = 300; // ~30% of etaSeconds * 1000
+const READY_STAGE_RATIO = 800; // ~80% of etaSeconds * 1000
+const DEFAULT_ETA_FALLBACK = 30;
+
 const listeners = new Set<() => void>();
 let state: Order[] = load();
 
@@ -23,7 +30,8 @@ function load(): Order[] {
   try {
     const raw = window.localStorage.getItem(KEY);
     return raw ? (JSON.parse(raw) as Order[]) : [];
-  } catch {
+  } catch (error) {
+    console.warn("Failed to load orders from localStorage:", error);
     return [];
   }
 }
@@ -31,8 +39,8 @@ function save() {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(state));
-  } catch {
-    /* ignore */
+  } catch (error) {
+    console.error("Failed to save orders to localStorage:", error);
   }
 }
 function emit() {
@@ -59,9 +67,9 @@ export function getOrdersForTesting(): Order[] {
   return state;
 }
 
-export function createOrder(items: OrderItem[], stall = "Concourse Grill"): Order {
+export function createOrder(items: OrderItem[], stall = DEFAULT_STALL): Order {
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const etaSeconds = 30 + items.length * 12; // demo speed
+  const etaSeconds = BASE_PREPARATION_TIME + items.length * PER_ITEM_PREPARATION_TIME; // demo speed
   const order: Order = {
     id: `ord_${Date.now().toString(36)}`,
     createdAt: Date.now(),
@@ -104,8 +112,14 @@ function scheduleAdvance(id: string) {
     emit();
     if (next !== "Ready") window.setTimeout(advance, (o.etaSeconds * 1000) / 3);
   };
-  window.setTimeout(advance, (state.find((x) => x.id === id)?.etaSeconds ?? 30) * 300); // ~30% to Preparing
-  window.setTimeout(advance, (state.find((x) => x.id === id)?.etaSeconds ?? 30) * 800); // ~80% to Ready
+  window.setTimeout(
+    advance,
+    (state.find((x) => x.id === id)?.etaSeconds ?? DEFAULT_ETA_FALLBACK) * PREPARING_STAGE_RATIO,
+  );
+  window.setTimeout(
+    advance,
+    (state.find((x) => x.id === id)?.etaSeconds ?? DEFAULT_ETA_FALLBACK) * READY_STAGE_RATIO,
+  );
 }
 
 export function orderProgress(o: Order): number {

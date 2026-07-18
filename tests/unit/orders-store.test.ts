@@ -1,5 +1,29 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act as reactAct } from "@testing-library/react";
+
+let capturedServerSnapshot: (() => unknown) | null = null;
+
+vi.mock("react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react")>();
+  return {
+    ...actual,
+    useSyncExternalStore: (
+      subscribe: unknown,
+      getSnapshot: unknown,
+      getServerSnapshot: unknown,
+    ) => {
+      if (typeof getServerSnapshot === "function") {
+        capturedServerSnapshot = getServerSnapshot as () => unknown;
+      }
+      return actual.useSyncExternalStore(
+        subscribe as () => void,
+        getSnapshot as () => unknown,
+        getServerSnapshot as () => unknown,
+      );
+    },
+  };
+});
+
 import {
   createOrder,
   markPickedUp,
@@ -156,12 +180,20 @@ describe("orders-store business logic", () => {
       unmount();
     });
 
+    it("should provide an empty array as server snapshot in useOrders", () => {
+      renderHook(() => useOrders());
+      expect(capturedServerSnapshot).toBeDefined();
+      if (capturedServerSnapshot) {
+        expect(capturedServerSnapshot()).toEqual([]);
+      }
+    });
+
     it("should handle localStorage errors during load", async () => {
       vi.resetModules();
       const getItemSpy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
         throw new Error("Simulated storage error");
       });
-      
+
       const module = await import("@/lib/orders-store");
       expect(module.getOrdersForTesting()).toEqual([]);
       getItemSpy.mockRestore();

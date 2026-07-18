@@ -1,4 +1,3 @@
-/* eslint-disable no-empty */
 // Predictions leaderboard — anonymous user id, poll & match predictions,
 // scoring rules, all client-side via localStorage so it works without a
 // backend. Multi-tab safe via the storage event.
@@ -42,9 +41,12 @@ const SEED_BOARD: Fan[] = [
   { uid: "seed-8", name: "Jonas S.", predictions: [], points: 24, correct: 3, streak: 0, best: 2 },
 ];
 
+const MAX_NAME_LENGTH = 24;
+const DEFAULT_ME_NAME = "You";
+
 const ANONYMOUS_ME: Fan = {
   uid: "anon",
-  name: "You",
+  name: DEFAULT_ME_NAME,
   predictions: [],
   points: 0,
   correct: 0,
@@ -58,7 +60,8 @@ function readBoard(): Fan[] {
     const raw = localStorage.getItem(KEY_BOARD);
     if (!raw) return SEED_BOARD;
     return JSON.parse(raw) as Fan[];
-  } catch {
+  } catch (error) {
+    console.warn("Failed to read leaderboard board:", error);
     return SEED_BOARD;
   }
 }
@@ -68,7 +71,9 @@ function writeBoard(board: Fan[]) {
   try {
     localStorage.setItem(KEY_BOARD, JSON.stringify(board));
     window.dispatchEvent(new CustomEvent(CHANNEL));
-  } catch {}
+  } catch (error) {
+    console.error("Failed to write leaderboard board:", error);
+  }
 }
 
 function ensureMe(): Fan {
@@ -83,12 +88,23 @@ function ensureMe(): Fan {
     if (raw) {
       try {
         return JSON.parse(raw) as Fan;
-      } catch {}
+      } catch (error) {
+        console.warn("Failed to parse 'me' profile JSON:", error);
+      }
     }
-    const me: Fan = { uid, name: "You", predictions: [], points: 0, correct: 0, streak: 0, best: 0 };
+    const me: Fan = {
+      uid,
+      name: DEFAULT_ME_NAME,
+      predictions: [],
+      points: 0,
+      correct: 0,
+      streak: 0,
+      best: 0,
+    };
     localStorage.setItem(KEY_ME, JSON.stringify(me));
     return me;
-  } catch {
+  } catch (error) {
+    console.error("Failed to ensure 'me' profile:", error);
     return ANONYMOUS_ME;
   }
 }
@@ -101,7 +117,9 @@ function writeMe(me: Fan) {
     const board = readBoard().filter((f) => f.uid !== me.uid);
     board.push(me);
     writeBoard(board);
-  } catch {}
+  } catch (error) {
+    console.error("Failed to write 'me' profile:", error);
+  }
 }
 
 // SCORING RULES (feature memory)
@@ -129,7 +147,7 @@ export function useMe() {
   return {
     me,
     setName: (name: string) => {
-      const next = { ...ensureMe(), name: name.slice(0, 24) || "You" };
+      const next = { ...ensureMe(), name: name.slice(0, MAX_NAME_LENGTH) || DEFAULT_ME_NAME };
       writeMe(next);
       setMe(next);
     },
