@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-empty, react-hooks/exhaustive-deps */
+/* eslint-disable no-empty, react-hooks/exhaustive-deps */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin.functions";
 import { useAdmin, type Fixture, type Standing } from "@/lib/admin-store";
 import { cn } from "@/lib/utils";
+import type { Database } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
@@ -101,8 +102,9 @@ function AdminPage() {
                   const r = await claim();
                   if (r.claimed) await refresh();
                   else setClaimError("An admin already exists — ask them to grant you the role.");
-                } catch (e: any) {
-                  setClaimError(e?.message ?? "Could not claim admin");
+                } catch (e) {
+                  const message = e instanceof Error ? e.message : "Could not claim admin";
+                  setClaimError(message);
                 }
               }}
               className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
@@ -506,7 +508,7 @@ function BroadcastTab() {
   const [body, setBody] = useState("Live from the pitch.");
   const [tag, setTag] = useState("GOAL");
   const [tone, setTone] = useState<"primary" | "accent" | "warning" | "destructive">("destructive");
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Database["public"]["Tables"]["admin_broadcasts"]["Row"][]>([]);
   const [status, setStatus] = useState<string | null>(null);
 
   const refresh = async () => {
@@ -525,8 +527,9 @@ function BroadcastTab() {
       await broadcast({ data: { tag, title, body, tone } });
       setStatus("Broadcast published to the alerts feed.");
       await refresh();
-    } catch (e: any) {
-      setStatus(e?.message ?? "Failed to broadcast");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to broadcast";
+      setStatus(message);
     }
   };
 
@@ -559,7 +562,9 @@ function BroadcastTab() {
         </select>
         <select
           value={tone}
-          onChange={(e) => setTone(e.target.value as any)}
+          onChange={(e) =>
+            setTone(e.target.value as "primary" | "accent" | "warning" | "destructive")
+          }
           className="rounded-xl border border-border bg-background px-3 py-2 text-sm"
         >
           {["destructive", "warning", "accent", "primary"].map((t) => (

@@ -1,11 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Auth-gated admin server functions. All calls require a signed-in user;
-// mutating calls additionally require has_role('admin').
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
-async function assertAdmin(context: { supabase: any; userId: string }) {
+type BroadcastRow = Database["public"]["Tables"]["admin_broadcasts"]["Row"];
+
+async function assertAdmin(context: { supabase: SupabaseClient<Database>; userId: string }) {
   const { data, error } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
@@ -74,6 +75,6 @@ export const listBroadcasts = createServerFn({ method: "GET" }).handler(async ()
     .select("id, tag, title, body, tone, created_at")
     .order("created_at", { ascending: false })
     .limit(20);
-  if (error) return { broadcasts: [] as any[] };
+  if (error) return { broadcasts: [] as BroadcastRow[] };
   return { broadcasts: data ?? [] };
 });

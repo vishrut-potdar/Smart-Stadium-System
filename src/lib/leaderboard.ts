@@ -73,20 +73,24 @@ function writeBoard(board: Fan[]) {
 
 function ensureMe(): Fan {
   if (typeof window === "undefined") return ANONYMOUS_ME;
-  let uid = localStorage.getItem(KEY_UID);
-  if (!uid) {
-    uid = "u-" + Math.random().toString(36).slice(2, 9);
-    localStorage.setItem(KEY_UID, uid);
+  try {
+    let uid = localStorage.getItem(KEY_UID);
+    if (!uid) {
+      uid = "u-" + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem(KEY_UID, uid);
+    }
+    const raw = localStorage.getItem(KEY_ME);
+    if (raw) {
+      try {
+        return JSON.parse(raw) as Fan;
+      } catch {}
+    }
+    const me: Fan = { uid, name: "You", predictions: [], points: 0, correct: 0, streak: 0, best: 0 };
+    localStorage.setItem(KEY_ME, JSON.stringify(me));
+    return me;
+  } catch {
+    return ANONYMOUS_ME;
   }
-  const raw = localStorage.getItem(KEY_ME);
-  if (raw) {
-    try {
-      return JSON.parse(raw) as Fan;
-    } catch {}
-  }
-  const me: Fan = { uid, name: "You", predictions: [], points: 0, correct: 0, streak: 0, best: 0 };
-  localStorage.setItem(KEY_ME, JSON.stringify(me));
-  return me;
 }
 
 function writeMe(me: Fan) {

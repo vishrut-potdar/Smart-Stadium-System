@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,8 +60,9 @@ function AuthPage() {
         setInfo("Account created. Check your email if confirmation is required, then sign in.");
         setMode("signin");
       }
-    } catch (err: any) {
-      setError(err?.message ?? "Something went wrong");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -78,8 +78,9 @@ function AuthPage() {
       if (result.error) throw result.error;
       if (result.redirected) return;
       navigate({ to: "/" });
-    } catch (err: any) {
-      setError(err?.message ?? "Google sign-in failed");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Google sign-in failed";
+      setError(message);
     } finally {
       setBusy(false);
     }

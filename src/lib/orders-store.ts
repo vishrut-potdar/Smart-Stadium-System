@@ -55,6 +55,10 @@ export function useOrders(): Order[] {
   );
 }
 
+export function getOrdersForTesting(): Order[] {
+  return state;
+}
+
 export function createOrder(items: OrderItem[], stall = "Concourse Grill"): Order {
   const total = items.reduce((s, i) => s + i.price * i.qty, 0);
   const etaSeconds = 30 + items.length * 12; // demo speed
@@ -81,6 +85,11 @@ export function markPickedUp(id: string) {
 export function clearPickedUp() {
   state = state.filter((o) => o.stage !== "Picked up");
   emit();
+}
+
+export function _resetStoreForTesting() {
+  state = [];
+  listeners.clear();
 }
 
 function scheduleAdvance(id: string) {

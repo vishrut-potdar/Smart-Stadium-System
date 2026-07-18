@@ -156,7 +156,9 @@ const LEXICON: Record<string, Record<LangCode, string>> = {
   },
 };
 
-function localTranslate(text: string, targetCode: LangCode): string {
+export function localTranslate(text: string, targetCode: LangCode): string {
+  if (targetCode === "en") return text;
+
   // Check exact matches
   const cleaned = text.trim().replace(/\s+/g, " ");
   for (const [key, trans] of Object.entries(SAMPLE_TRANSLATIONS)) {

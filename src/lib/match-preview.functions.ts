@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GenAI: generate a localized tactical match preview using Gemini API.
 import { createServerFn } from "@tanstack/react-start";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -261,7 +260,7 @@ Rules: headline under 12 words, tactical_brief 2 short sentences, exactly 2-3 ke
 
         return { preview: output, error: null as string | null };
       }
-    } catch (error: any) {
+    } catch (error) {
       // On API errors, fallback to high-quality local generator too!
       return { preview: generateLocalPreview(home, away, venue, lang), error: null };
     }

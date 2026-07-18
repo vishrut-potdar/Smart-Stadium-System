@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Card, Icon } from "@/components/AppShell";
@@ -7,11 +6,30 @@ import { useT } from "@/lib/i18n";
 
 type Props = { home: string; away: string; venue?: string };
 
+interface KeyPlayer {
+  team: string;
+  player: string;
+  why: string;
+}
+
+interface Prediction {
+  winner: string;
+  score: string;
+  confidence: string;
+}
+
+interface MatchPreviewData {
+  headline: string;
+  tactical_brief: string;
+  key_players: KeyPlayer[];
+  prediction: Prediction;
+}
+
 export function AiMatchPreview({ home, away, venue }: Props) {
   const gen = useServerFn(generateMatchPreview);
   const { t } = useT();
   const { lang } = useT();
-  const [preview, setPreview] = useState<any | null>(null);
+  const [preview, setPreview] = useState<MatchPreviewData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,8 +40,9 @@ export function AiMatchPreview({ home, away, venue }: Props) {
       const r = await gen({ data: { home, away, venue, lang } });
       setPreview(r.preview);
       if (r.error) setError(r.error);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to load preview");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to load preview";
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -69,7 +88,7 @@ export function AiMatchPreview({ home, away, venue }: Props) {
           <p className="mt-3 text-sm text-muted-foreground">{preview.tactical_brief}</p>
           {preview.key_players?.length > 0 && (
             <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-              {preview.key_players.map((p: any, i: number) => (
+              {preview.key_players.map((p: KeyPlayer, i: number) => (
                 <li key={i} className="rounded-xl bg-secondary/50 p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold">{p.player}</span>
